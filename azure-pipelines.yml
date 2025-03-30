@@ -4,16 +4,32 @@
 # https://aka.ms/yaml
 
 trigger:
-- master
+- master  # Triggers on changes to the master branch
 
 pool:
-  vmImage: ubuntu-latest
+  name: Default  # This is your self-hosted agent pool
 
 steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+- task: UseDotNet@2
+  inputs:
+    packageType: 'sdk'
+    version: '8.0.x'
+    installationPath: $(Agent.ToolsDirectory)/dotnet
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+- script: dotnet restore ClassLibraryProjects.sln
+  displayName: 'Restore Dependencies'
+
+- script: dotnet build StringLibrary/StringLibrary.csproj --configuration Release
+  displayName: 'Build Class Library'
+
+- script: dotnet pack StringLibrary/StringLibrary.csproj --configuration Release --output $(Build.ArtifactStagingDirectory)
+  displayName: 'Pack NuGet Package'
+
+- task: NuGetAuthenticate@1
+
+- task: NuGetCommand@2
+  inputs:
+    command: 'push'
+    packagesToPush: '$(Build.ArtifactStagingDirectory)/*.nupkg'
+    publishVstsFeed: 'ClassLibraryProjects/MyNugetFeed'
+    allowPackageConflicts: true
